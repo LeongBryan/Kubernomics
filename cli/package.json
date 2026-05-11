@@ -1,0 +1,12 @@
+{
+  "name": "@kubernomics/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "kubernomics": "dist/cli/src/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}
