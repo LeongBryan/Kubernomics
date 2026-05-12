@@ -33,6 +33,17 @@ const NOT_CHECKED_CONSTRAINTS = [
   'Karpenter / Cluster Autoscaler policy constraints',
 ]
 
+const CATEGORY_LABELS: Record<AdvisorFinding['category'], string> = {
+  'reclaimable-capacity': 'reclaimable capacity',
+  'pending-workload': 'pending workloads',
+  'pdb-blocker': 'blocking PDBs',
+  'placement-constraint': 'placement constraints',
+  'storage-mobility': 'storage mobility checks',
+  'system-tax': 'platform tax',
+  'not-analyzed': 'not analyzed',
+  'unsupported-constraint': 'unsupported constraints',
+}
+
 function workloadNamespace(workload: Workload): string {
   return workload.metadata?.namespace ?? 'unknown'
 }
@@ -47,6 +58,41 @@ function metadataTrue(workload: Workload, key: string): boolean {
 
 function nonDaemonPlacementCount(node: SimulationResult['nodes'][number]): number {
   return node.placements.filter((placement) => placement.kind !== 'DaemonSet').length
+}
+
+function summarizeFindings(findings: AdvisorFinding[]): string[] {
+  const groups = new Map<string, AdvisorFinding[]>()
+  for (const finding of findings) {
+    const key = `${finding.severity}:${finding.category}`
+    groups.set(key, [...(groups.get(key) ?? []), finding])
+  }
+
+  return [...groups.entries()]
+    .sort(([a], [b]) => {
+      const severityOrder: Record<AdvisorFinding['severity'], number> = { critical: 0, warning: 1, info: 2 }
+      const [aSeverity, aCategory] = a.split(':') as [AdvisorFinding['severity'], AdvisorFinding['category']]
+      const [bSeverity, bCategory] = b.split(':') as [AdvisorFinding['severity'], AdvisorFinding['category']]
+      return severityOrder[aSeverity] - severityOrder[bSeverity] || CATEGORY_LABELS[aCategory].localeCompare(CATEGORY_LABELS[bCategory])
+    })
+    .map(([key, group]) => {
+      const [severity, category] = key.split(':') as [AdvisorFinding['severity'], AdvisorFinding['category']]
+      const examples = group
+        .map((finding) => finding.workloadName ?? finding.nodePoolName ?? finding.title)
+        .filter(Boolean)
+        .slice(0, 3)
+      const suffix = examples.length > 0 ? `, for example ${examples.join(', ')}${group.length > examples.length ? ', ...' : ''}` : ''
+      return `${group.length} ${severity} ${CATEGORY_LABELS[category]} finding${group.length === 1 ? '' : 's'}${suffix}`
+    })
+}
+
+function recommendationRelevantBlockers(blockers: AdvisorFinding[], workloads: Workload[]): AdvisorFinding[] {
+  const workloadMap = new Map(workloads.map((workload) => [workload.id, workload]))
+  return blockers.filter((finding) => {
+    if (!finding.workloadId) return true
+    const workload = workloadMap.get(finding.workloadId)
+    if (!workload) return true
+    return workload.kind !== 'DaemonSet'
+  })
 }
 
 function daemonAndSystemCpu(node: SimulationResult['nodes'][number]): number {
@@ -231,8 +277,11 @@ function buildSafety(
   reclaimableNodes: number,
   poolBlockers: AdvisorFinding[],
 ): { status: RecommendationSafetyStatus; explanation: string } {
-  const criticalBlockers = poolBlockers.filter((b) => b.severity === 'critical')
-  const warningBlockers = poolBlockers.filter((b) => b.severity === 'warning' || b.category === 'unsupported-constraint')
+  const hardBlockers = poolBlockers.filter((b) => b.severity === 'critical' && (b.category === 'pdb-blocker' || b.category === 'pending-workload'))
+  const investigationBlockers = poolBlockers.filter(
+    (b) => b.severity === 'critical' || b.severity === 'warning' || b.category === 'unsupported-constraint'
+  )
+  const summaries = summarizeFindings(investigationBlockers)
 
   if (reclaimableNodes === 0) {
     return {
@@ -240,16 +289,16 @@ function buildSafety(
       explanation: 'No empty nodes were produced by bin-pack simulation. Nothing to reclaim in the current configuration.',
     }
   }
-  if (criticalBlockers.length > 0) {
+  if (hardBlockers.length > 0) {
     return {
       status: 'blocked',
-      explanation: `Reclaiming nodes is blocked by ${criticalBlockers.length} critical constraint${criticalBlockers.length === 1 ? '' : 's'}: ${criticalBlockers.map((b) => b.title).join('; ')}.`,
+      explanation: `${reclaimableNodes} node${reclaimableNodes === 1 ? '' : 's'} look reclaimable in simulation, but drain safety is blocked by ${summarizeFindings(hardBlockers).join('; ')}.`,
     }
   }
-  if (warningBlockers.length > 0) {
+  if (investigationBlockers.length > 0) {
     return {
       status: 'uncertain',
-      explanation: `${reclaimableNodes} node${reclaimableNodes === 1 ? '' : 's'} appear reclaimable, but ${warningBlockers.length} constraint${warningBlockers.length === 1 ? '' : 's'} require investigation before draining.`,
+      explanation: `${reclaimableNodes} node${reclaimableNodes === 1 ? '' : 's'} look reclaimable in simulation. Verify drain candidates first because this pool has ${summaries.join('; ')}.`,
     }
   }
   return {
@@ -317,9 +366,10 @@ function recommendationForPool({
     if (!finding.workloadId) return false
     return binPackResult.placements.some((placement) => placement.workloadId === finding.workloadId && placement.nodePoolId === pool.id)
   })
+  const relevantPoolBlockers = recommendationRelevantBlockers(poolBlockers, workloads)
 
   const blockersByWorkloadId = new Map<string, AdvisorFinding[]>()
-  for (const blocker of poolBlockers) {
+  for (const blocker of relevantPoolBlockers) {
     if (blocker.workloadId) {
       const existing = blockersByWorkloadId.get(blocker.workloadId) ?? []
       existing.push(blocker)
@@ -329,7 +379,7 @@ function recommendationForPool({
 
   const disruptionPreview = buildDisruptionPreview(pool, binPackResult, workloads, blockersByWorkloadId)
   const affectedNamespaces = [...new Set(disruptionPreview.map((e) => e.namespace).filter((ns) => ns !== 'unknown'))]
-  const { status: safetyStatus, explanation: safetyExplanation } = buildSafety(reclaimableNodes, poolBlockers)
+  const { status: safetyStatus, explanation: safetyExplanation } = buildSafety(reclaimableNodes, relevantPoolBlockers)
 
   const summary =
     reclaimableNodes > 0
@@ -344,8 +394,8 @@ function recommendationForPool({
     summary,
     safetyStatus,
     safetyExplanation,
-    blockers: poolBlockers,
-    investigations: poolBlockers.map((finding) => finding.title),
+    blockers: relevantPoolBlockers,
+    investigations: summarizeFindings(relevantPoolBlockers),
     disruptionPreview,
     affectedNamespaces,
   }

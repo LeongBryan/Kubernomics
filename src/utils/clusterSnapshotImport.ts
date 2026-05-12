@@ -1,6 +1,6 @@
 import { DEFAULT_CLOUD, findCatalogShape, nodeShapePatch } from '../catalogs/providers'
 import { SCENARIO_SCHEMA_VERSION, type NodePool, type Scenario, type Workload, type WorkloadClassification } from '../core/simulator'
-import type { ClusterSnapshot, SnapshotNode, SnapshotTaint, SnapshotWorkload } from '../schema/clusterSnapshot'
+import type { ClusterSnapshot, NodePoolPricing, SnapshotNode, SnapshotTaint, SnapshotWorkload } from '../schema/clusterSnapshot'
 
 type NodeGroup = {
   name: string
@@ -72,12 +72,17 @@ function groupNodes(nodes: SnapshotNode[]): NodeGroup[] {
   return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name) || a.instanceType.localeCompare(b.instanceType))
 }
 
-function poolFromGroup(group: NodeGroup): NodePool {
+function pricingForGroup(group: NodeGroup, pricing?: ClusterSnapshot['pricing']): NodePoolPricing | undefined {
+  return pricing?.nodePools.find((entry) => entry.nodePool === group.name && entry.instanceType === group.instanceType)
+}
+
+function poolFromGroup(group: NodeGroup, pricing?: ClusterSnapshot['pricing']): NodePool {
   const region = DEFAULT_CLOUD.region
   const catalogShape = findCatalogShape(DEFAULT_CLOUD.provider, group.instanceType, region)
   const first = group.nodes[0]
   const capacity = first?.capacity ?? { cpuMillis: 0, memoryMiB: 0 }
   const allocatable = first?.allocatable ?? capacity
+  const poolPricing = pricingForGroup(group, pricing)
   const shapePatch = catalogShape
     ? nodeShapePatch(catalogShape, region)
     : {
@@ -99,6 +104,7 @@ function poolFromGroup(group: NodeGroup): NodePool {
         },
         kubeReserved: { cpuMillis: 0, memoryMiB: 0 },
       }
+  const hourlyCost = poolPricing?.hourlyCostUsd ?? shapePatch.hourlyCost
 
   return {
     id: `pool-${slug(group.name)}`,
@@ -108,10 +114,18 @@ function poolFromGroup(group: NodeGroup): NodePool {
     labels: commonLabels(group.nodes),
     taints: commonTaints(group.nodes),
     ...shapePatch,
+    hourlyCost,
+    shape: {
+      ...shapePatch.shape,
+      hourlyCost,
+    },
     maxPods: Math.min(...group.nodes.map((node) => node.maxPods || shapePatch.maxPods || 110)),
     metadata: {
       observedNodeCount: String(group.nodes.length),
       importedInstanceType: group.instanceType,
+      ...(poolPricing?.observedDailyCostUsd !== undefined
+        ? { observedDailyCost: String(poolPricing.observedDailyCostUsd) }
+        : {}),
     },
   }
 }
@@ -182,7 +196,7 @@ export function importClusterSnapshot(snapshot: ClusterSnapshot): Scenario {
     description: `Imported from cluster snapshot captured at ${snapshot.capturedAt}.`,
     cloud: DEFAULT_CLOUD,
     schedulerStrategy: 'Spread',
-    nodePools: groupNodes(snapshot.nodes).map(poolFromGroup),
+    nodePools: groupNodes(snapshot.nodes).map((group) => poolFromGroup(group, snapshot.pricing)),
     workloads,
     metadata: {
       source: 'cluster-snapshot',

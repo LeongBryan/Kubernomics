@@ -95,14 +95,19 @@ export function NodeBar({ pool, node }: { pool: NodePool; node: NodeResult }) {
     ].join('\n'),
   })
 
-  const utilisation = total === 0 ? 0 : ((total - unused) / total) * 100
+  const requestedShare = total === 0 ? 0 : ((total - unused) / total) * 100
+  const requestedTooltip = [
+    `${resourceView === 'cpu' ? 'CPU' : 'Memory'} requested/reserved share`,
+    `${pct(requestedShare)} of node capacity`,
+    'This is simulator allocation from requests plus system reservation, not live usage metrics.',
+  ].join('\n')
 
   return (
     <div className={node.addedByAutoscaler ? 'node-row autoscaled' : 'node-row'}>
-      <div className="node-label">
+      <div className="node-label" title={requestedTooltip}>
         {node.addedByAutoscaler && <span className="plus">+</span>}
         <span>#{node.ordinal}</span>
-        <small>{pct(utilisation)}</small>
+        <small>req {pct(requestedShare)}</small>
       </div>
       <div className="stacked-bar" aria-label={`${pool.name} node ${node.ordinal}`}>
         {displaySegments

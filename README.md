@@ -129,6 +129,21 @@ Suggested investigations:
 - Verify redis-cache mobility
 ```
 
+### Storage Mobility Signals
+
+The advisor uses **storage mobility** as a drain-safety signal: can a workload be evicted from its current node and restart elsewhere while still reaching the storage it depends on?
+
+Storage findings are not all equal:
+
+- **PVC present** means the workload uses a PersistentVolumeClaim. This is an investigation item, not automatically a blocker. Many cloud-backed PVCs can move, but movement can still be constrained by volume access mode, zone, attachment state, and StorageClass behavior.
+- **Azure File / RWX PVC** is usually movable across nodes.
+- **Azure Disk / RWO PVC** is usually movable, but only one node can attach it at a time and it may be zone-constrained.
+- **hostPath** means the pod mounts a path from the node filesystem. This is a stronger node-bound risk because the data or path may not exist on another node.
+- **local storage / local PV** is also node-bound unless the platform has explicit migration or recreation logic.
+- **Platform DaemonSet hostPath mounts** such as CSI drivers, log agents, kube-proxy, and networking agents are expected infrastructure behavior. They should be visible in analysis, but they should not be treated like application drain blockers for pool reclaim decisions.
+
+In other words, storage mobility does not mean "this pool cannot be optimized." It means "before deleting or draining nodes, verify that affected workloads can restart on target nodes with their required storage attached."
+
 ---
 
 ## Architecture
@@ -309,6 +324,7 @@ npm run build  # production build
 - [x] Explain why each recommendation is safe or blocked
 - [x] Show analysis coverage (what was checked, what was not)
 - [x] Mark unsupported constraints clearly rather than silently ignoring
+- [ ] Add inline UI explanation for storage mobility findings, including PVC vs hostPath/local storage severity and platform DaemonSet treatment
 
 ### Future
 - [ ] Prometheus metrics import for actual utilization

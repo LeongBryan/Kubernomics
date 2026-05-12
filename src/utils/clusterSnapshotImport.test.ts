@@ -61,4 +61,31 @@ describe('importClusterSnapshot', () => {
     })
     expect(result.pendingPods).toHaveLength(0)
   })
+
+  it('uses snapshot pricing metadata when available', () => {
+    const scenario = importClusterSnapshot({
+      ...snapshot,
+      pricing: {
+        source: 'custom',
+        currency: 'USD',
+        nodePools: [
+          {
+            nodePool: 'system',
+            instanceType: 'Standard_D4ds_v5',
+            hourlyCostUsd: 1.5,
+            observedDailyCostUsd: 72,
+          },
+        ],
+      },
+    })
+
+    expect(scenario.nodePools[0]).toMatchObject({
+      hourlyCost: 1.5,
+      shape: { hourlyCost: 1.5 },
+      metadata: {
+        observedDailyCost: '72',
+        observedNodeCount: '1',
+      },
+    })
+  })
 })

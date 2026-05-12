@@ -99,4 +99,30 @@ describe('adviseRepack', () => {
     )
     expect(advisor.notAnalyzed[0].category).toBe('not-analyzed')
   })
+
+  it('summarizes recommendation investigations instead of listing every workload blocker in the safety text', () => {
+    const input = scenario({
+      workloads: [
+        workload({
+          id: 'wl-api',
+          name: 'api',
+          metadata: { usesHostPath: 'true' },
+        }),
+        workload({
+          id: 'wl-worker',
+          name: 'worker',
+          metadata: { usesHostPath: 'true' },
+        }),
+      ],
+    })
+    const advisor = adviseRepack(input, simulateScenario(input))
+    const recommendation = advisor.recommendations[0]
+
+    expect(recommendation.safetyStatus).toBe('uncertain')
+    expect(recommendation.safetyExplanation).toContain('2 critical storage mobility checks findings')
+    expect(recommendation.safetyExplanation).not.toContain('api has storage mobility constraints; worker has storage mobility constraints')
+    expect(recommendation.investigations).toEqual([
+      expect.stringContaining('2 critical storage mobility checks findings'),
+    ])
+  })
 })

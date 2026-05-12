@@ -59,7 +59,9 @@ export function RepackAdvisorPanel({ advisor }: { advisor: RepackAdvisorResult }
 
               <div className="advisor-safety">
                 <span className={safetyClass(recommendation.safetyStatus)}>{safetyLabel(recommendation.safetyStatus)}</span>
-                <span className="advisor-safety-text">{recommendation.safetyExplanation}</span>
+                <span className="advisor-safety-text" title={recommendation.safetyExplanation}>
+                  {recommendation.safetyExplanation}
+                </span>
               </div>
 
               {recommendation.disruptionPreview.length > 0 && (
@@ -90,12 +92,12 @@ export function RepackAdvisorPanel({ advisor }: { advisor: RepackAdvisorResult }
                 </details>
               )}
 
-              {recommendation.blockers.length > 0 && (
+              {recommendation.investigations.length > 0 && (
                 <ul className="advisor-blockers">
-                  {recommendation.blockers.map((blocker) => (
-                    <li key={blocker.id}>
-                      <span className={severityClass(blocker.severity)}>{blocker.severity}</span>
-                      <span>{blocker.title}</span>
+                  {recommendation.investigations.map((investigation) => (
+                    <li key={investigation}>
+                      <span className="badge warn">check</span>
+                      <span title={investigation}>{investigation}</span>
                     </li>
                   ))}
                 </ul>

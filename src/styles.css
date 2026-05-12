@@ -451,10 +451,12 @@ button:disabled { color: #94a3b8; cursor: not-allowed; }
 .advisor-heading p { margin: 0.2rem 0 0; color: #475569; font-size: 0.82rem; }
 .advisor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
   gap: 0.65rem;
 }
 .advisor-card {
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 0.7rem;
@@ -465,27 +467,45 @@ button:disabled { color: #94a3b8; cursor: not-allowed; }
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  min-width: 0;
 }
-.advisor-card h3 { margin: 0; font-size: 0.88rem; }
-.advisor-card strong { color: #166534; font-size: 0.85rem; white-space: nowrap; }
-.advisor-card p { margin: 0.45rem 0 0; color: #475569; font-size: 0.8rem; line-height: 1.35; }
+.advisor-card h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.88rem;
+}
+.advisor-card strong { color: #166534; flex-shrink: 0; font-size: 0.85rem; white-space: nowrap; }
+.advisor-card p {
+  margin: 0.45rem 0 0;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
 
 /* Safety status row */
 .advisor-safety {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: 0.35rem;
   margin-top: 0.5rem;
 }
+.advisor-safety .badge { justify-self: start; }
 .advisor-safety-text {
-  flex: 1;
+  min-width: 0;
   color: #475569;
   font-size: 0.78rem;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 /* Disruption preview (collapsible) */
 .advisor-disruption {
+  min-width: 0;
   margin-top: 0.65rem;
   border-top: 1px solid #f1f5f9;
   padding-top: 0.55rem;
@@ -495,6 +515,7 @@ button:disabled { color: #94a3b8; cursor: not-allowed; }
   list-style: none;
   color: #64748b;
   font-size: 0.78rem;
+  overflow-wrap: anywhere;
 }
 .advisor-disruption > summary::-webkit-details-marker { display: none; }
 .advisor-disruption > summary::before { content: '▸ '; font-size: 0.7rem; }
@@ -531,6 +552,7 @@ button:disabled { color: #94a3b8; cursor: not-allowed; }
   margin: 0.4rem 0 0;
   color: #64748b;
   font-size: 0.74rem;
+  overflow-wrap: anywhere;
 }
 
 /* Blocker list in card */
@@ -543,11 +565,16 @@ button:disabled { color: #94a3b8; cursor: not-allowed; }
 }
 .advisor-blockers li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.4rem;
   min-width: 0;
   color: #334155;
   font-size: 0.78rem;
+}
+.advisor-blockers .badge { flex-shrink: 0; }
+.advisor-blockers li > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Findings list */

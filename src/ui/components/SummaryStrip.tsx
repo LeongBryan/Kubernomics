@@ -1,18 +1,20 @@
 import type { SimulationResult } from '../../core/simulator'
+import { useUiStore } from '../../store/uiStore'
 import { cpu, memory, money } from '../lib/format'
 
 export function SummaryStrip({ result }: { result: SimulationResult }) {
+  const currency = useUiStore((state) => state.currency)
   const unhealthy = result.workloadHealth.filter((workload) => workload.state !== 'Healthy').length
   const addedNodes = result.autoscalingSummary.reduce((sum, item) => sum + item.addedNodes, 0)
 
   const items = [
-    { label: 'Hourly cost', value: money(result.costSummary.hourly) },
-    { label: 'Monthly run-rate', value: money(result.costSummary.monthly) },
+    { label: 'Hourly cost', value: money(result.costSummary.hourly, currency) },
+    { label: 'Monthly run-rate', value: money(result.costSummary.monthly, currency) },
     { label: 'Nodes', value: `${result.nodes.length}` },
     { label: 'Added nodes', value: `${addedNodes}` },
     { label: 'Unhealthy workloads', value: `${unhealthy}` },
-    { label: 'System tax', value: money(result.costSummary.systemTaxHourly) },
-    { label: 'Unused cost', value: money(result.costSummary.unusedCapacityHourly) },
+    { label: 'System tax', value: money(result.costSummary.systemTaxHourly, currency) },
+    { label: 'Unused cost', value: money(result.costSummary.unusedCapacityHourly, currency) },
     { label: 'Unused capacity', value: `${cpu(result.capacitySummary.unused.cpuMillis)} / ${memory(result.capacitySummary.unused.memoryMiB)}` }
   ]
 

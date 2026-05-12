@@ -11,10 +11,11 @@ export function CostBreakdown({ scenario, result }: { scenario: Scenario; result
     const resultNodes = result?.nodes.filter((n) => n.nodePoolId === pool.id).length
     const nodes = resultNodes ?? (pool.mode === 'manual' ? pool.nodeCount ?? 0 : pool.initialNodes ?? pool.minNodes ?? 0)
     const hourly = nodeHourlyCost(pool) * nodes
-    const observedDaily = observedPoolDailyCost(pool) === undefined ? undefined : hourly * 24
+    const observedDaily = observedPoolDailyCost(pool)
+    const estimatedDaily = hourly * 24
     const monthly = hourly * HOURS_PER_MONTH
 
-    return { pool, nodes, hourly, monthly, observedDaily }
+    return { pool, nodes, hourly, monthly, observedDaily, estimatedDaily }
   })
 
   const totalMonthly = rows.reduce((s, r) => s + r.monthly, 0)
@@ -43,7 +44,9 @@ export function CostBreakdown({ scenario, result }: { scenario: Scenario; result
               <td>{row.pool.shape.name}</td>
               <td>{row.nodes}</td>
               <td>{money(row.pool.hourlyCost ?? row.pool.shape.hourlyCost ?? 0, currency)}</td>
-              <td>{row.observedDaily === undefined ? '-' : money(row.observedDaily, currency)}</td>
+              <td title={row.observedDaily === undefined ? 'Estimated from VM/hr and node count' : 'Observed billing run-rate'}>
+                {money(row.observedDaily ?? row.estimatedDaily, currency)}
+              </td>
               <td>{money(row.monthly, currency)}</td>
             </tr>
           ))}

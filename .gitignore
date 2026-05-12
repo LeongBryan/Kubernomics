@@ -16,6 +16,7 @@ playwright-report/
 
 # Local app exports and generated snapshots
 exports/
+cluster-snapshot.json
 
 # Logs
 logs/
