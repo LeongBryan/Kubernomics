@@ -26,36 +26,36 @@ export function CostBreakdown({ scenario, result }: { scenario: Scenario; result
         <h2>Node Pool Cost</h2>
         <strong>{money(totalMonthly, currency)}/mo</strong>
       </summary>
-      <table>
-        <thead>
-          <tr>
-            <th>Pool</th>
-            <th>Shape</th>
-            <th>Nodes</th>
-            <th>VM/hr</th>
-            <th>VMSS/day</th>
-            <th>Pool/mo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.pool.id}>
-              <td>{row.pool.name}</td>
-              <td>{row.pool.shape.name}</td>
-              <td>{row.nodes}</td>
-              <td>{money(row.pool.hourlyCost ?? row.pool.shape.hourlyCost ?? 0, currency)}</td>
-              <td title={row.observedDaily === undefined ? 'Estimated from VM/hr and node count' : 'Observed billing run-rate'}>
+      <div className="cost-list">
+        {rows.map((row) => (
+          <div key={row.pool.id} className="cost-row">
+            <div className="cost-row-main">
+              <strong>{row.pool.name}</strong>
+              <span>
+                {row.pool.shape.name} · {row.nodes} node{row.nodes === 1 ? '' : 's'}
+              </span>
+            </div>
+            <div className="cost-row-metrics">
+              <span>
+                <small>VM/hr</small>
+                {money(row.pool.hourlyCost ?? row.pool.shape.hourlyCost ?? 0, currency)}
+              </span>
+              <span title={row.observedDaily === undefined ? 'Estimated from VM/hr and node count' : 'Observed billing run-rate'}>
+                <small>VMSS/day</small>
                 {money(row.observedDaily ?? row.estimatedDaily, currency)}
-              </td>
-              <td>{money(row.monthly, currency)}</td>
-            </tr>
-          ))}
-          <tr className="total-row">
-            <td colSpan={5}>VMSS total</td>
-            <td>{money(totalMonthly, currency)}</td>
-          </tr>
-        </tbody>
-      </table>
+              </span>
+              <span>
+                <small>Pool/mo</small>
+                {money(row.monthly, currency)}
+              </span>
+            </div>
+          </div>
+        ))}
+        <div className="cost-total">
+          <span>VMSS total</span>
+          <strong>{money(totalMonthly, currency)}</strong>
+        </div>
+      </div>
     </details>
   )
 }
